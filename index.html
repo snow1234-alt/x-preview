@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>X投稿プレビュー</title>
+<style>
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    margin: 0; padding: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Hiragino Sans", "Yu Gothic UI", sans-serif;
+    background: #f7f9f9;
+    color: #0f1419;
+    font-size: 15px;
+    line-height: 1.4;
+  }
+  .app {
+    max-width: 600px;
+    margin: 0 auto;
+    padding: 12px;
+  }
+  h1 {
+    font-size: 16px;
+    margin: 4px 0 12px;
+    color: #536471;
+    font-weight: 600;
+  }
+
+  /* 入力エリア */
+  .editor {
+    background: #fff;
+    border: 1px solid #eff3f4;
+    border-radius: 16px;
+    padding: 12px;
+    margin-bottom: 16px;
+  }
+  .text-highlight {
+    position: relative;
+    width: 100%;
+  }
+  .text-highlight textarea,
+  .text-highlight .backdrop {
+    width: 100%;
+    min-height: 120px;
+    margin: 0;
+    padding: 0;
+    border: none;
+    font-family: inherit;
+    font-size: 15px;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    word-break: normal;
+    line-break: auto;
+    box-sizing: border-box;
+  }
+  .text-highlight textarea {
+    position: relative;
+    outline: none;
+    resize: none;
+    overflow: hidden;
+    color: #0f1419;
+    background: transparent;
+    z-index: 1;
+  }
+  .text-highlight .backdrop {
+    position: absolute;
+    top: 0; left: 0;
+    height: 100%;
+    color: transparent;
+    pointer-events: none;
+    overflow: hidden;
+  }
+  .text-highlight .backdrop .over {
+    background: #ffd4d4;
+    border-radius: 2px;
+  }
+  textarea::placeholder { color: #536471; }
+
+  .toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid #eff3f4;
+  }
+  .file-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px; height: 36px;
+    border-radius: 50%;
+    background: transparent;
+    color: #1d9bf0;
+    border: none;
+    cursor: pointer;
+    font-size: 20px;
+  }
+  .file-btn:hover { background: #e8f5fd; }
+  .file-btn:disabled { color: #8ecdf5; cursor: not-allowed; }
+  input[type=file] { display: none; }
+
+  .counter {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 13px;
+    color: #536471;
+    font-variant-numeric: tabular-nums;
+  }
+  .counter .num { font-weight: 600; }
+  .counter.warn .num { color: #ffd400; }
+  .counter.over .num { color: #f4212e; }
+  .mode-badge {
+    font-size: 11px;
+    padding: 3px 8px;
+    border-radius: 10px;
+    background: #eff3f4;
+    color: #536471;
+  }
+  .mode-badge.long {
+    background: #1d9bf0;
+    color: #fff;
+  }
+
+  /* プレビュー */
+  .preview-label {
+    font-size: 12px;
+    color: #536471;
+    margin: 0 4px 6px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .tweet {
+    background: #fff;
+    border-radius: 16px;
+    padding: 12px;
+    display: flex;
+    gap: 4px;
+  }
+  .avatar {
+    width: 40px; height: 40px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #1d9bf0, #7856ff);
+    flex-shrink: 0;
+  }
+  .tweet-body {
+    flex: 1;
+    min-width: 0;
+  }
+  .name-area {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    font-size: 15px;
+    line-height: 1.2;
+    margin-bottom: 4px;
+  }
+  .name { font-weight: 700; color: #0f1419; }
+  .handle { color: #536471; font-weight: 400; }
+  .tweet-text {
+    font-size: 15px;
+    line-height: 1.5;
+    color: #0f1419;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    word-break: normal;
+    line-break: auto;
+    letter-spacing: 0;
+    -webkit-text-size-adjust: 100%;
+  }
+  .tweet-text.clamped {
+    display: -webkit-box;
+    -webkit-line-clamp: 10;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .show-more {
+    display: inline-block;
+    color: #1d9bf0;
+    font-size: 15px;
+    margin-top: 4px;
+    cursor: pointer;
+  }
+  .show-more:hover { text-decoration: underline; }
+
+  /* 画像レイアウト（X風） */
+  .media {
+    margin-top: 12px;
+    border-radius: 16px;
+    overflow: hidden;
+    border: 1px solid #eff3f4;
+    display: grid;
+    gap: 2px;
+    aspect-ratio: 16 / 9;
+    background: #eff3f4;
+  }
+  .media.count-1 { grid-template-columns: 1fr; grid-template-rows: 1fr; }
+  .media.count-2 { grid-template-columns: 1fr 1fr; grid-template-rows: 1fr; }
+  .media.count-3 { grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; }
+  .media.count-3 .cell:nth-child(1) { grid-row: 1 / 3; }
+  .media.count-4 { grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; }
+  .cell {
+    position: relative;
+    overflow: hidden;
+    background: #eff3f4;
+  }
+  .cell img {
+    width: 100%; height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+  .cell .remove {
+    position: absolute;
+    top: 6px; right: 6px;
+    width: 26px; height: 26px;
+    border-radius: 50%;
+    background: rgba(15, 20, 25, 0.75);
+    color: #fff;
+    border: none;
+    font-size: 16px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    line-height: 1;
+  }
+
+  /* アクション行 */
+  .actions {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 12px;
+    color: #536471;
+    max-width: 425px;
+  }
+  .action { display: flex; align-items: center; gap: 6px; font-size: 13px; }
+
+  /* リセット */
+  .reset {
+    margin-top: 16px;
+    width: 100%;
+    padding: 12px;
+    background: #fff;
+    border: 1px solid #eff3f4;
+    border-radius: 999px;
+    color: #0f1419;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .reset:active { background: #eff3f4; }
+
+  @media (max-width: 480px) {
+    .app { padding: 8px 4px; }
+    .text-highlight textarea { font-size: 16px; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <h1>X投稿プレビュー</h1>
+
+  <div class="editor">
+    <div class="text-highlight">
+      <div class="backdrop" id="backdrop" aria-hidden="true"></div>
+      <textarea id="text" placeholder="いまどうしてる？" autocomplete="off"></textarea>
+    </div>
+    <div class="toolbar">
+      <label class="file-btn" id="fileBtn" title="画像を追加">
+        🖼️
+        <input type="file" id="file" accept="image/*" multiple>
+      </label>
+      <div class="counter" id="counter">
+        <span class="mode-badge" id="modeBadge">通常</span>
+        <span><span class="num" id="count">0</span> / <span id="limit">280</span></span>
+      </div>
+    </div>
+  </div>
+
+  <div class="preview-label">プレビュー</div>
+  <div class="tweet">
+    <div class="avatar"></div>
+    <div class="tweet-body">
+      <div class="name-area">
+        <span class="name">あなた</span>
+        <span class="handle">@you</span>
+      </div>
+      <div class="tweet-text" id="previewText"></div>
+      <div id="showMore" class="show-more" style="display:none">さらに表示</div>
+      <div class="media" id="media" style="display:none"></div>
+      <div class="actions">
+        <span class="action">💬 12</span>
+        <span class="action">🔁 34</span>
+        <span class="action">❤️ 567</span>
+        <span class="action">📊 8.9k</span>
+        <span class="action">🔖</span>
+      </div>
+    </div>
+  </div>
+
+  <button class="reset" id="reset">クリア</button>
+</div>
+
+<script>
+  const textEl = document.getElementById('text');
+  const backdropEl = document.getElementById('backdrop');
+  const previewEl = document.getElementById('previewText');
+  const countEl = document.getElementById('count');
+  const limitEl = document.getElementById('limit');
+  const counterEl = document.getElementById('counter');
+  const modeBadge = document.getElementById('modeBadge');
+  const showMoreEl = document.getElementById('showMore');
+  const mediaEl = document.getElementById('media');
+  const fileInput = document.getElementById('file');
+  const resetBtn = document.getElementById('reset');
+
+  const NORMAL_LIMIT = 280;
+  const LONG_LIMIT = 25000;
+  const STORAGE_KEY = 'x-preview-draft-v1';
+
+  let images = [];
+  let expanded = false;
+
+  const URL_RE = /https?:\/\/[^\s]+/g;
+
+  function charWeight(cp) {
+    if (
+      (cp >= 0 && cp <= 4351) ||
+      (cp >= 8192 && cp <= 8205) ||
+      (cp >= 8208 && cp <= 8223) ||
+      (cp >= 8242 && cp <= 8247)
+    ) return 1;
+    return 2;
+  }
+
+  function xWeight(text) {
+    const normalized = text.replace(URL_RE, 'x'.repeat(23));
+    let w = 0;
+    for (const ch of normalized) {
+      w += charWeight(ch.codePointAt(0));
+    }
+    return w;
+  }
+
+  function escapeHtml(s) {
+    return s.replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+  }
+
+  function renderBackdrop(text, limit) {
+    const chars = [...text];
+    let weight = 0;
+    let overStart = -1;
+    let i = 0;
+    while (i < chars.length) {
+      const rest = chars.slice(i).join('');
+      const urlMatch = rest.match(/^https?:\/\/[^\s]+/);
+      let consumed, addWeight;
+      if (urlMatch) {
+        consumed = [...urlMatch[0]].length;
+        addWeight = 23;
+      } else {
+        consumed = 1;
+        addWeight = charWeight(chars[i].codePointAt(0));
+      }
+      if (overStart === -1 && weight + addWeight > limit) {
+        overStart = i;
+      }
+      weight += addWeight;
+      i += consumed;
+    }
+    if (overStart === -1) {
+      backdropEl.textContent = text;
+    } else {
+      const safe = chars.slice(0, overStart).join('');
+      const over = chars.slice(overStart).join('');
+      backdropEl.innerHTML = escapeHtml(safe) + '<span class="over">' + escapeHtml(over) + '</span>';
+    }
+  }
+
+  function updatePreview() {
+    const text = textEl.value;
+    previewEl.textContent = text;
+
+    const len = xWeight(text);
+    countEl.textContent = len;
+
+    textEl.style.height = 'auto';
+    textEl.style.height = Math.max(120, textEl.scrollHeight) + 'px';
+
+    try { localStorage.setItem(STORAGE_KEY, text); } catch (e) {}
+
+    const isLong = len > NORMAL_LIMIT;
+    const limit = isLong ? LONG_LIMIT : NORMAL_LIMIT;
+    limitEl.textContent = limit.toLocaleString();
+
+    counterEl.classList.remove('warn', 'over');
+    if (isLong) {
+      modeBadge.textContent = '長文投稿';
+      modeBadge.classList.add('long');
+      if (len > LONG_LIMIT) counterEl.classList.add('over');
+    } else {
+      modeBadge.textContent = '通常';
+      modeBadge.classList.remove('long');
+      if (len >= NORMAL_LIMIT - 20) counterEl.classList.add('warn');
+    }
+
+    renderBackdrop(text, NORMAL_LIMIT);
+
+    if (isLong && !expanded) {
+      previewEl.classList.add('clamped');
+      showMoreEl.style.display = 'inline-block';
+      showMoreEl.textContent = 'さらに表示';
+    } else if (isLong && expanded) {
+      previewEl.classList.remove('clamped');
+      showMoreEl.style.display = 'inline-block';
+      showMoreEl.textContent = '閉じる';
+    } else {
+      previewEl.classList.remove('clamped');
+      showMoreEl.style.display = 'none';
+    }
+  }
+
+  function renderMedia() {
+    mediaEl.innerHTML = '';
+    if (images.length === 0) {
+      mediaEl.style.display = 'none';
+      return;
+    }
+    mediaEl.style.display = 'grid';
+    mediaEl.className = 'media count-' + images.length;
+    images.forEach((src, i) => {
+      const cell = document.createElement('div');
+      cell.className = 'cell';
+      const img = document.createElement('img');
+      img.src = src;
+      const btn = document.createElement('button');
+      btn.className = 'remove';
+      btn.textContent = '×';
+      btn.addEventListener('click', () => {
+        images.splice(i, 1);
+        renderMedia();
+      });
+      cell.appendChild(img);
+      cell.appendChild(btn);
+      mediaEl.appendChild(cell);
+    });
+  }
+
+  textEl.addEventListener('input', updatePreview);
+
+  fileInput.addEventListener('change', (e) => {
+    const files = Array.from(e.target.files);
+    files.forEach(file => {
+      if (images.length >= 4) return;
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        images.push(ev.target.result);
+        renderMedia();
+      };
+      reader.readAsDataURL(file);
+    });
+    fileInput.value = '';
+  });
+
+  showMoreEl.addEventListener('click', () => {
+    expanded = !expanded;
+    updatePreview();
+  });
+
+  resetBtn.addEventListener('click', () => {
+    textEl.value = '';
+    images = [];
+    expanded = false;
+    try { localStorage.removeItem(STORAGE_KEY); } catch (e) {}
+    renderMedia();
+    updatePreview();
+    textEl.focus();
+  });
+
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) textEl.value = saved;
+  } catch (e) {}
+
+  updatePreview();
+</script>
+</body>
+</html>
